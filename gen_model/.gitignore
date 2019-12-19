@@ -1,0 +1,4 @@
+.venv/*
+*_config.json
+*_vocab.json
+*.hdf5
