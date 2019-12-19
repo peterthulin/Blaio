@@ -1,0 +1,14 @@
+{
+	"num_epochs": 3,
+	"batch_size": 128,
+	"new_model": true,
+	"rnn_bidirectional": false,
+	"rnn_size": 64,
+	"dim_embeddings": 300,
+	"gen_epochs": 1,
+	"save_epochs": 1,
+	"max_gen_length": 300,
+	"dropout": 0.2,
+	"multi_gpu": false,
+	"verbose": 1
+}

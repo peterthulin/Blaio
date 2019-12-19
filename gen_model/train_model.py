@@ -8,7 +8,7 @@ from textgenrnn import textgenrnn
 
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_DEFAULT_CONFIG_PATH = _SCRIPT_DIR / 'training_config.json'
+_DEFAULT_CONFIG_PATH = _SCRIPT_DIR / 'config_example.json'
 
 
 def main():
