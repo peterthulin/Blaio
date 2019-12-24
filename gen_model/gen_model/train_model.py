@@ -1,6 +1,8 @@
 import argparse
+import glob
 import json
 import random
+import shutil
 
 from pathlib import Path
 
@@ -8,31 +10,56 @@ from textgenrnn import textgenrnn
 
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_DEFAULT_CONFIG_PATH = _SCRIPT_DIR / 'config_example.json'
+_DEFAULT_CONFIG = {
+    "batch_size": 128,
+    "dim_embeddings": 300,
+    "dropout": 0.2,
+    "gen_epochs": 1,
+    "max_gen_length": 300,
+    "multi_gpu": False,
+    "new_model": True,
+    "num_epochs": 3,
+    "rnn_bidirectional": False,
+    "rnn_size": 32,
+    "save_epochs": 1,
+    "verbose": 1
+}
 
 
 def main():
     args = _parse_args()
 
-    json_blog_data = read_json_file(args.blog_data)
+    print(args.blog_data)
+
+    if is_gscloud_file(args.blog_data):
+        json_blog_data = read_gscloud_file(args.blog_data)
+    else:
+        json_blog_data = read_json_file(args.blog_data)
+
     if args.dataset_size:
         json_blog_data = sample_json_blog_data(json_blog_data, args.dataset_size)
 
     texts = convert_json_data_to_texts(json_blog_data)
 
-    training_config = read_json_file(args.config)
+    if args.config:
+        training_config = read_json_file(args.config)
+    else:
+        training_config = _DEFAULT_CONFIG
 
     textgenrnn_model = textgenrnn(name=args.model_name)
     textgenrnn_model.reset()
     textgenrnn_model.train_on_texts(texts,
                                     **training_config)
 
+    if args.out_dir:
+        move_output_files_to_dir(args.model_name, args.job_dir)
+
 
 def _parse_args():
     parser = argparse.ArgumentParser(
         description='Train blog text generation model, aka a Blaio model.')
     parser.add_argument(
-        '--blog-data', type=Path, required=True,
+        '--blog-data', type=str, required=True,
         help='Path to json file containing scraped blog data.')
     parser.add_argument(
         '--dataset-size', type=int, default=None,
@@ -41,8 +68,11 @@ def _parse_args():
         '--model-name', type=str, default='blaigo_model',
         help='Select a model name to alter name of output files.')
     parser.add_argument(
-        '--config', type=Path, default=_DEFAULT_CONFIG_PATH,
+        '--config', type=Path, default=None,
         help='Config file for textgenrnn model training.')
+    parser.add_argument(
+        '--job-dir', type=Path, default=None,
+        help='Path to move all output files to.')
     return parser.parse_args()
 
 
@@ -50,6 +80,17 @@ def read_json_file(json_file_path):
     # Reads the blog content json file into list of dictionaries structure
     with open(json_file_path) as json_file:
         json_data = json.load(json_file)
+    return json_data
+
+
+def is_gscloud_file(file_path):
+    return file_path.startswith('gs:')
+
+
+def read_gscloud_file(gs_uri):
+    from tensorflow.io.gfile import GFile
+    raw_content = GFile(gs_uri).read()
+    json_data = json.loads(raw_content)
     return json_data
 
 
@@ -66,6 +107,12 @@ def convert_json_data_to_texts(json_blog_data):
         text = f"{title}. {content}"
         texts.append(text)
     return texts
+
+
+def move_output_files_to_dir(model_name: str, out_dir: Path):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for f in glob.glob('./' + model_name + '*'):
+        shutil.move(f, str(out_dir))
 
 
 if __name__ == '__main__':
