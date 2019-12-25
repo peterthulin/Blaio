@@ -1,12 +1,15 @@
 import argparse
 import glob
 import json
+import os
 import random
 import shutil
 
 from pathlib import Path
 
 from textgenrnn import textgenrnn
+
+from tensorflow.io import gfile
 
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -31,7 +34,7 @@ def main():
 
     print(args.blog_data)
 
-    if is_gscloud_file(args.blog_data):
+    if is_gscloud_path(args.blog_data):
         json_blog_data = read_gscloud_file(args.blog_data)
     else:
         json_blog_data = read_json_file(args.blog_data)
@@ -51,8 +54,11 @@ def main():
     textgenrnn_model.train_on_texts(texts,
                                     **training_config)
 
-    if args.out_dir:
-        move_output_files_to_dir(args.model_name, args.job_dir)
+    if args.job_dir:
+        if is_gscloud_path(args.job_dir):
+            move_output_files_to_cloud(args.model_name, args.job_dir)
+        else:
+            move_output_files_to_dir(args.model_name, args.job_dir)
 
 
 def _parse_args():
@@ -71,7 +77,7 @@ def _parse_args():
         '--config', type=Path, default=None,
         help='Config file for textgenrnn model training.')
     parser.add_argument(
-        '--job-dir', type=Path, default=None,
+        '--job-dir', type=str, default=None,
         help='Path to move all output files to.')
     return parser.parse_args()
 
@@ -83,13 +89,12 @@ def read_json_file(json_file_path):
     return json_data
 
 
-def is_gscloud_file(file_path):
+def is_gscloud_path(file_path):
     return file_path.startswith('gs:')
 
 
 def read_gscloud_file(gs_uri):
-    from tensorflow.io.gfile import GFile
-    raw_content = GFile(gs_uri).read()
+    raw_content = gfile.GFile(gs_uri).read()
     json_data = json.loads(raw_content)
     return json_data
 
@@ -109,10 +114,19 @@ def convert_json_data_to_texts(json_blog_data):
     return texts
 
 
-def move_output_files_to_dir(model_name: str, out_dir: Path):
-    out_dir.mkdir(parents=True, exist_ok=True)
+def move_output_files_to_dir(model_name: str, out_dir: str):
+    Path(out_dir).mkdir(parents=True, exist_ok=True)
     for f in glob.glob('./' + model_name + '*'):
-        shutil.move(f, str(out_dir))
+        shutil.move(f, out_dir)
+
+
+def move_output_files_to_cloud(model_name: str, cloud_dir: str):
+    if not gfile.exists(cloud_dir):
+        gfile.mkdir(cloud_dir)
+    for f in glob.glob('./' + model_name + '*'):
+        filename = Path(f).name
+        gfile.copy(f, cloud_dir + '/' + filename)
+        os.remove(f)
 
 
 if __name__ == '__main__':
