@@ -15,14 +15,15 @@ Install gcloud beta (run once):
 `gcloud components install beta`  
 
 Create a model version to run predictions on:  
-`gcloud beta ai-platform versions create $VERSION_NAME \
+```
+gcloud beta ai-platform versions create $VERSION_NAME \
   --model $MODEL_NAME \
   --runtime-version 1.15 \
   --python-version 3.7 \
   --origin gs://$BUCKET_NAME/trained_model_location \
   --package-uris gs://$BUCKET_NAME/blaio_prediction-0.1.tar.gz \
-  --prediction-class predict_model.BlaioPredictor`  
-
+  --prediction-class predict_model.BlaioPredictor
+```
 Installed required libraries for sendin prediction requests:  
 `pip3 install --upgrade google-api-python-client`  
 
