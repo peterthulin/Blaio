@@ -19,11 +19,12 @@ _DEFAULT_CONFIG = {
     "dropout": 0.2,
     "gen_epochs": 1,
     "max_gen_length": 300,
+    "max_length": 50,
     "multi_gpu": False,
     "new_model": True,
     "num_epochs": 3,
     "rnn_bidirectional": False,
-    "rnn_size": 32,
+    "rnn_size": 64,
     "save_epochs": 1,
     "verbose": 1
 }
@@ -31,8 +32,6 @@ _DEFAULT_CONFIG = {
 
 def main():
     args = _parse_args()
-
-    print(args.blog_data)
 
     if is_gscloud_path(args.blog_data):
         json_blog_data = read_gscloud_file(args.blog_data)
@@ -42,12 +41,17 @@ def main():
     if args.dataset_size:
         json_blog_data = sample_json_blog_data(json_blog_data, args.dataset_size)
 
+    if args.job_dir:
+        if is_gscloud_path(args.job_dir):
+            gfile.makedirs(args.job_dir)
+        else:
+            Path(args.job_dir).mkdir(exist_ok=True, parents=True)
+
     texts = convert_json_data_to_texts(json_blog_data)
 
+    training_config = _DEFAULT_CONFIG
     if args.config:
-        training_config = read_json_file(args.config)
-    else:
-        training_config = _DEFAULT_CONFIG
+        training_config.update(read_json_file(args.config))
 
     textgenrnn_model = textgenrnn(name=args.model_name)
     textgenrnn_model.reset()
@@ -74,7 +78,7 @@ def _parse_args():
         '--model-name', type=str, default='blaigo_model',
         help='Select a model name to alter name of output files.')
     parser.add_argument(
-        '--config', type=Path, default=None,
+        '--config', type=str, default=None,
         help='Config file for textgenrnn model training.')
     parser.add_argument(
         '--job-dir', type=str, default=None,
@@ -99,6 +103,10 @@ def read_gscloud_file(gs_uri):
     return json_data
 
 
+def create_gscloud_dir(gs_uri):
+    gfile.makedirs(gs_uri)
+
+
 def sample_json_blog_data(json_blog_data, dataset_size):
     random.seed(1337)  # TODO: parameterize this?
     return random.sample(json_blog_data, dataset_size)
@@ -115,14 +123,11 @@ def convert_json_data_to_texts(json_blog_data):
 
 
 def move_output_files_to_dir(model_name: str, out_dir: str):
-    Path(out_dir).mkdir(parents=True, exist_ok=True)
     for f in glob.glob('./' + model_name + '*'):
         shutil.move(f, out_dir)
 
 
 def move_output_files_to_cloud(model_name: str, cloud_dir: str):
-    if not gfile.exists(cloud_dir):
-        gfile.mkdir(cloud_dir)
     for f in glob.glob('./' + model_name + '*'):
         filename = Path(f).name
         gfile.copy(f, cloud_dir + '/' + filename)
