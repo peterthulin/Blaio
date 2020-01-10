@@ -8,7 +8,6 @@ import shutil
 from pathlib import Path
 
 from textgenrnn import textgenrnn
-
 from tensorflow.io import gfile
 
 
@@ -21,17 +20,19 @@ _DEFAULT_CONFIG = {
     "max_gen_length": 300,
     "max_length": 50,
     "multi_gpu": False,
-    "new_model": True,
     "num_epochs": 3,
     "rnn_bidirectional": False,
     "rnn_size": 64,
     "save_epochs": 1,
-    "verbose": 1
+    "verbose": 0
 }
 
 
 def main():
     args = _parse_args()
+
+    if args.random_seed:
+        random.seed(args.random_seed)
 
     if is_gscloud_path(args.blog_data):
         json_blog_data = read_gscloud_file(args.blog_data)
@@ -39,7 +40,8 @@ def main():
         json_blog_data = read_json_file(args.blog_data)
 
     if args.dataset_size:
-        json_blog_data = sample_json_blog_data(json_blog_data, args.dataset_size)
+        json_blog_data = sample_json_blog_data(
+            json_blog_data, args.dataset_size)
 
     if args.job_dir:
         if is_gscloud_path(args.job_dir):
@@ -54,15 +56,11 @@ def main():
         training_config.update(read_json_file(args.config))
 
     textgenrnn_model = textgenrnn(name=args.model_name)
-    textgenrnn_model.reset()
-    textgenrnn_model.train_on_texts(texts,
-                                    **training_config)
+    textgenrnn_model.train_new_model(texts,
+                                     **training_config)
 
     if args.job_dir:
-        if is_gscloud_path(args.job_dir):
-            move_output_files_to_cloud(args.model_name, args.job_dir)
-        else:
-            move_output_files_to_dir(args.model_name, args.job_dir)
+        move_output_files_to_dir(args.model_name, args.job_dir)
 
 
 def _parse_args():
@@ -74,6 +72,10 @@ def _parse_args():
     parser.add_argument(
         '--dataset-size', type=int, default=None,
         help='Use to select a smaller portion of the blog data.')
+    parser.add_argument(
+        '--random-seed', type=int, default=None,
+        help='Set the global random seed. Only used if --dataset-size is used. '
+             'Might affect other functionality as well.')
     parser.add_argument(
         '--model-name', type=str, default='blaigo_model',
         help='Select a model name to alter name of output files.')
@@ -108,7 +110,6 @@ def create_gscloud_dir(gs_uri):
 
 
 def sample_json_blog_data(json_blog_data, dataset_size):
-    random.seed(1337)  # TODO: parameterize this?
     return random.sample(json_blog_data, dataset_size)
 
 
@@ -117,20 +118,20 @@ def convert_json_data_to_texts(json_blog_data):
     for blog_dict in json_blog_data:
         title = blog_dict['title']
         content = blog_dict['content']
-        text = f"{title}. {content}"
+        text = "{}. {}".format(title, content)
         texts.append(text)
     return texts
 
 
 def move_output_files_to_dir(model_name: str, out_dir: str):
-    for f in glob.glob('./' + model_name + '*'):
-        shutil.move(f, out_dir)
+    if is_gscloud_path(out_dir):
+        copy_function = gfile.copy
+    else:
+        copy_function = shutil.copy
 
-
-def move_output_files_to_cloud(model_name: str, cloud_dir: str):
     for f in glob.glob('./' + model_name + '*'):
         filename = Path(f).name
-        gfile.copy(f, cloud_dir + '/' + filename)
+        copy_function(f, out_dir + '/' + filename)
         os.remove(f)
 
 
