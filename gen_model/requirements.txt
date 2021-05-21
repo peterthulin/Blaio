@@ -1,2 +1,2 @@
-tensorflow==1.15
+tensorflow==2.5.0
 textgenrnn==1.5.0
