@@ -10,5 +10,5 @@ setup(
     classifiers=[],
     python_requires='>=3',
     include_package_data=True,
-    install_requires=['tensorflow==1.15', 'textgenrnn==1.5.0']
+    install_requires=['tensorflow==2.11.1', 'textgenrnn==1.5.0']
 )
